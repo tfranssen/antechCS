@@ -31,7 +31,6 @@ EasyNex myNex(Serial2);
 
 int cutterServoRPM = 500;
 int straightenerServoRPM = 500;
-
 int cutterSteps = 7500;
 
 #define safetyRelay               CONTROLLINO_R0    //Relay to release safety
@@ -70,7 +69,6 @@ AccelStepper stepperCutter = AccelStepper(motorInterfaceType, stepperCutterStepP
 
 int feederMaxSpeedSetting = 5000;
 int feederExtrudeAccel = 10000;
-
 int cutterMaxSpeedSetting = 1000;
 int cutterExtrudeAccel = 10000;
 
@@ -391,7 +389,7 @@ void trigger19() {
       if (digitalRead(cuttingTableBottomSensor)) {
         stepperCutter.stop();
         stepperCutter.setCurrentPosition(0);
-        stepperCutter.setMaxSpeed(1000);
+        stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
         stepperCutterSafetyFlag = 0;
         stepperCutterHomedFlag = 1;
       }
