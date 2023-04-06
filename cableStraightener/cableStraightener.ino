@@ -32,6 +32,8 @@ EasyNex myNex(Serial2);
 int cutterServoRPM = 500;
 int straightenerServoRPM = 500;
 
+int cutterSteps = 7500;
+
 #define safetyRelay               CONTROLLINO_R0    //Relay to release safety
 #define safetyStandbyRelay        CONTROLLINO_R3    //Standby mode for safety
 #define lightRelay                CONTROLLINO_R4    //Relay for light
@@ -284,7 +286,7 @@ void trigger13() {
   }
 
   if (stepperCutterHomedFlag) {
-    stepperCutter.move(7500);
+    stepperCutter.move(cutterSteps);
   } else {
     Serial.println("Stepper not homed");
   }
@@ -297,7 +299,7 @@ void trigger14() {
   }
 
   if (stepperCutterHomedFlag) {
-    stepperCutter.move(-7500);
+    stepperCutter.move(-cutterSteps);
   } else {
     Serial.println("Stepper not homed");
   }
