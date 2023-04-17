@@ -29,7 +29,7 @@
 
 EasyNex myNex(Serial2);
 
-int cutterServoRPM = 100;
+int cutterServoRPM = 200;
 int straightenerServoRPM = 350;
 int cutterSteps = 5000;
 
