@@ -30,7 +30,7 @@
 EasyNex myNex(Serial2);
 
 int cutterServoRPM = 200;
-int straightenerServoRPM = 350;
+int straightenerServoRPM = 1400;
 int cutterSteps = 5000;
 
 #define safetyRelay CONTROLLINO_R0                //Relay to release safety
@@ -413,6 +413,9 @@ void trigger11() {
     Serial.println("Button pressed: Rotate - ");
   }
   setStraightenerServoRPM(0);
+  delay(1000);  
+  disableStraightenerServo();
+  
 }
 
 //Rotate +
@@ -420,6 +423,8 @@ void trigger12() {
   if (debug) {
     Serial.println("Button pressed: Rotate +");
   }
+  enableStraightenerServo();
+  delay(100);
   setStraightenerServoRPM(straightenerServoRPM);
 }
 
@@ -452,7 +457,7 @@ void trigger15() {
 
 //Feed +
 void trigger16() {
-  stepperFeeder.move(20000);
+  stepperFeeder.move(60000);
   if (debug) {
     Serial.println("Button pressed: Feed +");
   }
@@ -472,10 +477,14 @@ void trigger23() {
   }
 
   if (cutActive == false) {
+    enableCutterServo();
+    delay(100);
     setCutterServoRPM(cutterServoRPM);
     cutActive = true;
   } else {
     setCutterServoRPM(0);
+    delay(1000);
+    disableCutterServo();
     cutActive = false;
   }
 }
