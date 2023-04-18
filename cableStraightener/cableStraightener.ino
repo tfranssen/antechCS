@@ -31,8 +31,9 @@ EasyNex myNex(Serial2);
 
 int cutterServoRPM = 200;
 int straightenerServoRPM = 1400;
-
 int cutterSteps = 5000;
+int cutterMaxSpeedSetting = 1000;
+
 
 #define safetyRelay CONTROLLINO_R0                //Relay to release safety
 #define safetyStandbyRelay CONTROLLINO_R3         //Standby mode for safety
@@ -87,7 +88,6 @@ AccelStepper stepperCutter = AccelStepper(motorInterfaceType, stepperCutterStepP
 
 int feederMaxSpeedSetting = 5000;
 int feederExtrudeAccel = 10000;
-int cutterMaxSpeedSetting = 1000;
 int cutterExtrudeAccel = 10000;
 
 int currentPage = 0;
