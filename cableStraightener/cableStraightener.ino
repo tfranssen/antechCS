@@ -34,7 +34,6 @@ int straightenerServoRPM = 1400;
 int cutterSteps = 5000;
 int cutterMaxSpeedSetting = 1000;
 
-
 #define safetyRelay CONTROLLINO_R0                //Relay to release safety
 #define safetyStandbyRelay CONTROLLINO_R3         //Standby mode for safety
 #define lightRelay CONTROLLINO_R4                 //Relay for light
@@ -47,12 +46,10 @@ int cutterMaxSpeedSetting = 1000;
 #define ledGreenPin CONTROLLINO_D10
 #define ledRedPin CONTROLLINO_D11
 
-
 #define safetyRelayInput CONTROLLINO_A1
 #define safetyButtonInput CONTROLLINO_A2
 bool safetyRelayStatus = false;
 bool safetyButtonStatus = false;
-
 
 //Modbus settings
 long modbusBaudRate = 9600;
@@ -63,8 +60,8 @@ modbusMaster modbus2;
 int motorId = 0;
 
 //Proces vars
-int lengthVar = 0;
-int quantityVar = 0;
+int lengthVar = 10;
+int quantityVar = 10;
 
 bool errorFlag = 0;
 bool processingFlag = 0;
@@ -115,7 +112,6 @@ void setup() {
   pinMode(CONTROLLINO_D6, OUTPUT);
   pinMode(CONTROLLINO_D7, OUTPUT);
   pinMode(CONTROLLINO_D8, OUTPUT);
-
   pinMode(CONTROLLINO_D10, OUTPUT);
   pinMode(CONTROLLINO_D11, OUTPUT);
 
@@ -129,7 +125,6 @@ void setup() {
   pinMode(CONTROLLINO_A0, INPUT);
   pinMode(CONTROLLINO_A1, INPUT);
   pinMode(CONTROLLINO_A2, INPUT);
-
 
   pinMode(cuttingTableBottomSensor, INPUT);
   pinMode(cuttingTableTopSensor, INPUT);
@@ -228,7 +223,8 @@ void loop() {
       delay(100);
       setStraightenerServoRPM(straightenerServoRPM);
       delay(500);
-      stepperFeeder.runToNewPosition(15000 * processingCount);
+      stepperFeeder.setCurrentPosition(0);
+      stepperFeeder.runToNewPosition(1500*lengthVar);
       setStraightenerServoRPM(0);
       delay(1000);
       disableStraightenerServo();
@@ -414,9 +410,9 @@ void trigger11() {
     Serial.println("Button pressed: Rotate - ");
   }
   setStraightenerServoRPM(0);
-  delay(1000);  
+  delay(1000);
   disableStraightenerServo();
-  
+
 }
 
 //Rotate +
