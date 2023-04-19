@@ -35,8 +35,10 @@ int cutterSteps = 5000;
 int cutterMaxSpeedSetting = 1000;
 
 #define safetyRelay CONTROLLINO_R0                //Relay to release safety
+#define externalPowerOutlet CONTROLLINO_R2        //Relay for vaccuum
 #define safetyStandbyRelay CONTROLLINO_R3         //Standby mode for safety
 #define lightRelay CONTROLLINO_R4                 //Relay for light
+
 #define cutterServoEnabled CONTROLLINO_R10        //Cutter servo enabled relay
 #define straightenerServoEnabled CONTROLLINO_R12  //straightener servo enabled relay
 
@@ -117,6 +119,7 @@ void setup() {
 
 
   pinMode(CONTROLLINO_R0, OUTPUT);
+  pinMode(CONTROLLINO_R2, OUTPUT);
   pinMode(CONTROLLINO_R3, OUTPUT);
   pinMode(CONTROLLINO_R4, OUTPUT);
   pinMode(CONTROLLINO_R10, OUTPUT);
@@ -228,6 +231,7 @@ void loop() {
       setStraightenerServoRPM(0);
       delay(1000);
       disableStraightenerServo();
+      enableExternalPower();
       enableCutterServo();
       delay(100);
       setCutterServoRPM(cutterServoRPM);
@@ -236,8 +240,9 @@ void loop() {
       stepperCutter.runToNewPosition(200);
       setCutterServoRPM(0);
       delay(1000);
-
       disableCutterServo();
+      disableExternalPower();
+
       delay(500);
     } else {
       processingFlag = 0;
@@ -264,6 +269,8 @@ void trigger0() {
   if (currentPage == 5) {
     Serial.println("Start cut rotation");
     enableCutterServo();
+    enableExternalPower();
+    
     delay(100);
     setCutterServoRPM(cutterServoRPM);
     delay(500);
@@ -275,6 +282,8 @@ void trigger0() {
     setCutterServoRPM(0);
     delay(1000);
     disableCutterServo();
+    disableExternalPower();
+
     delay(500);
   }
 
@@ -554,6 +563,14 @@ void disableCutterServo() {
 
 void disableStraightenerServo() {
   digitalWrite(straightenerServoEnabled, LOW);
+}
+
+void enableExternalPower() {
+  digitalWrite(externalPowerOutlet, HIGH);
+}
+
+void disableExternalPower() {
+  digitalWrite(externalPowerOutlet, LOW);
 }
 
 int readCutterServoRPM() {
