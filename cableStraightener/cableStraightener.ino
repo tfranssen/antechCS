@@ -29,9 +29,9 @@
 
 EasyNex myNex(Serial2);
 
-int cutterServoRPM = 200;
+int cutterServoRPM = 2500;
 int straightenerServoRPM = 1400;
-int cutterSteps = 5000;
+int cutterSteps = 11000;
 int cutterMaxSpeedSetting = 1000;
 
 #define safetyRelay CONTROLLINO_R0                //Relay to release safety
@@ -239,7 +239,7 @@ void loop() {
       stepperCutter.runToNewPosition(-cutterSteps);
       stepperCutter.runToNewPosition(200);
       setCutterServoRPM(0);
-      delay(1000);
+      delay(2200);
       disableCutterServo();
       disableExternalPower();
 
@@ -259,7 +259,7 @@ void loop() {
 //Length -
 void trigger0() {
 
-  if (currentPage == 1)
+  if (currentPage == 2)
     if (lengthVar > -1) {
       lengthVar--;
     }
