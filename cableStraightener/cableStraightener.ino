@@ -1,4 +1,4 @@
- #include <AccelStepper.h>
+#include <AccelStepper.h>
 #include <Controllino.h>
 #include "EasyNextionLibrary.h"
 #include "SensorModbusMaster.h"
@@ -33,6 +33,7 @@ int cutterServoRPM = 1000;
 int straightenerServoRPM = 1400;
 int cutterSteps = 7250;
 int cutterMaxSpeedSetting = 1000;
+int cutterMaxSpeedSettingDown = 5000; //Dit is de neergaande beweging
 
 #define safetyRelay CONTROLLINO_R0                //Relay to release safety
 #define externalPowerOutlet CONTROLLINO_R2        //Relay for vaccuum
@@ -159,11 +160,6 @@ void setup() {
   setCutterServoRPM(0);
   setStraightenerServoRPM(0);
 
-  //  modbus.uint16ToRegister(1541, 2000, bigEndian);  //Cutter servo acceleration 2s
-  //  modbus.uint16ToRegister(1542, 2000, bigEndian);  //Cutter servo deceleration 2s
-  //  modbus2.uint16ToRegister(1541, 2000, bigEndian); //Straigtener servo acceleration 2s
-  //  modbus2.uint16ToRegister(1542, 2000, bigEndian); //Straigtener servo deceleration 2s
-
   stepperFeeder.setMaxSpeed(feederMaxSpeedSetting);
   stepperFeeder.setAcceleration(feederExtrudeAccel);
   stepperFeeder.enableOutputs();
@@ -236,7 +232,9 @@ void loop() {
       delay(100);
       setCutterServoRPM(cutterServoRPM);
       delay(1500);
+      stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
       stepperCutter.runToNewPosition(-cutterSteps);
+      stepperCutter.setMaxSpeed(cutterMaxSpeedSettingDown);
       stepperCutter.runToNewPosition(200);
       setCutterServoRPM(0);
       delay(3200);
@@ -275,8 +273,10 @@ void trigger0() {
     setCutterServoRPM(cutterServoRPM);
     delay(5000);
     Serial.println("Move table up");
+    stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
     stepperCutter.runToNewPosition(-cutterSteps);
     Serial.println("Move table down");
+    stepperCutter.setMaxSpeed(cutterMaxSpeedSettingDown); 
     stepperCutter.runToNewPosition(200);
     Serial.println("Stop cut rotation");
     setCutterServoRPM(0);
