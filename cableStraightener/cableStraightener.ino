@@ -1,4 +1,4 @@
-#include <AccelStepper.h>
+ #include <AccelStepper.h>
 #include <Controllino.h>
 #include "EasyNextionLibrary.h"
 #include "SensorModbusMaster.h"
@@ -29,9 +29,9 @@
 
 EasyNex myNex(Serial2);
 
-int cutterServoRPM = 2500;
+int cutterServoRPM = 1000;
 int straightenerServoRPM = 1400;
-int cutterSteps = 11000;
+int cutterSteps = 7250;
 int cutterMaxSpeedSetting = 1000;
 
 #define safetyRelay CONTROLLINO_R0                //Relay to release safety
@@ -227,7 +227,7 @@ void loop() {
       setStraightenerServoRPM(straightenerServoRPM);
       delay(500);
       stepperFeeder.setCurrentPosition(0);
-      stepperFeeder.runToNewPosition(1500*lengthVar);
+      stepperFeeder.runToNewPosition(1315*lengthVar);
       setStraightenerServoRPM(0);
       delay(1000);
       disableStraightenerServo();
@@ -235,11 +235,11 @@ void loop() {
       enableCutterServo();
       delay(100);
       setCutterServoRPM(cutterServoRPM);
-      delay(500);
+      delay(1500);
       stepperCutter.runToNewPosition(-cutterSteps);
       stepperCutter.runToNewPosition(200);
       setCutterServoRPM(0);
-      delay(2200);
+      delay(3200);
       disableCutterServo();
       disableExternalPower();
 
@@ -273,7 +273,7 @@ void trigger0() {
     
     delay(100);
     setCutterServoRPM(cutterServoRPM);
-    delay(500);
+    delay(5000);
     Serial.println("Move table up");
     stepperCutter.runToNewPosition(-cutterSteps);
     Serial.println("Move table down");
@@ -374,9 +374,9 @@ void trigger7() {
   }
 
   setCutterServoRPM(200);
-  delay(500);
+  delay(1000);
   moveCutTableUp();
-  delay(3000);
+  delay(1000);
   moveCutTableDown();
   delay(3000);
   setCutterServoRPM(0);
@@ -454,7 +454,7 @@ void trigger14() {
 
 //Feed -
 void trigger15() {
-  stepperFeeder.move(-20000);
+  stepperFeeder.move(-2000);
 
   if (debug) {
     Serial.println("Button pressed: Feed -");
@@ -463,7 +463,7 @@ void trigger15() {
 
 //Feed +
 void trigger16() {
-  stepperFeeder.move(60000);
+  stepperFeeder.move(2000);
   if (debug) {
     Serial.println("Button pressed: Feed +");
   }
