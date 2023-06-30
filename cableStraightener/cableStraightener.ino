@@ -35,6 +35,11 @@ int cutterSteps = 7250;
 int cutterMaxSpeedSetting = 1000;
 int cutterMaxSpeedSettingDown = 4000; //Dit is de neergaande beweging
 
+//Rotary encoder settings
+#define rotaryEncoder CONTROLLINO_IN1
+long rotaryCount = 0;
+long lastRotaryCount = 0;
+
 #define safetyRelay CONTROLLINO_R0                //Relay to release safety
 #define externalPowerOutlet CONTROLLINO_R2        //Relay for vaccuum
 #define safetyStandbyRelay CONTROLLINO_R3         //Standby mode for safety
@@ -89,14 +94,10 @@ AccelStepper stepperCutter = AccelStepper(motorInterfaceType, stepperCutterStepP
 int feederMaxSpeedSetting = 5000;
 int feederExtrudeAccel = 10000;
 int cutterExtrudeAccel = 10000;
-
 int currentPage = 0;
 int lastPage = 0;
-
 bool debug = true;
-
 bool cutActive = false;
-
 bool cutterTableMoveUp = 0;
 
 String proccessingStatus = "";
@@ -132,6 +133,10 @@ void setup() {
 
   pinMode(cuttingTableBottomSensor, INPUT);
   pinMode(cuttingTableTopSensor, INPUT);
+
+  //Setup interupts
+  pinMode(rotaryEncoder, INPUT);
+  attachInterrupt(digitalPinToInterrupt(rotaryEncoder), rotaryPrint, CHANGE);
 
   //Nextion setup
   myNex.begin(9600);
@@ -224,6 +229,11 @@ void loop() {
       delay(500);
       stepperFeeder.setCurrentPosition(0);
       stepperFeeder.runToNewPosition(1315*lengthVar);
+      Serial.print("Rotary count: ");
+      Serial.println(rotaryCount);
+      Serial.print("Differance count: ");
+      Serial.println(rotaryCount-lastRotaryCount);
+      lastRotaryCount = rotaryCount;
       setStraightenerServoRPM(0);
       delay(1000);
       disableStraightenerServo();
@@ -637,4 +647,8 @@ void moveCutTableDown() {
   } else {
     Serial.println("Stepper not homed");
   }
+}
+
+void rotaryPrint() {
+  rotaryCount++;
 }
