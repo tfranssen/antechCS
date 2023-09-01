@@ -29,10 +29,10 @@
 
 EasyNex myNex(Serial2);
 
-int cutterServoRPM = 1000;
+int cutterServoRPM = 1150;
 int straightenerServoRPM = 1400;
 int cutterSteps = 7250;
-int cutterMaxSpeedSetting = 1000;
+int cutterMaxSpeedSetting = 700;
 int cutterMaxSpeedSettingDown = 4000; //Dit is de neergaande beweging
 
 //Rotary encoder settings
@@ -245,7 +245,7 @@ void loop() {
       stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
       stepperCutter.runToNewPosition(-cutterSteps);
       stepperCutter.setMaxSpeed(cutterMaxSpeedSettingDown);
-      stepperCutter.runToNewPosition(200);
+      stepperCutter.runToNewPosition(0);
       setCutterServoRPM(0);
       delay(3200);
       disableCutterServo();
@@ -287,7 +287,7 @@ void trigger0() {
     stepperCutter.runToNewPosition(-cutterSteps);
     Serial.println("Move table down");
     stepperCutter.setMaxSpeed(cutterMaxSpeedSettingDown); 
-    stepperCutter.runToNewPosition(200);
+    stepperCutter.runToNewPosition(0);
     Serial.println("Stop cut rotation");
     setCutterServoRPM(0);
     delay(1000);
@@ -624,7 +624,7 @@ void homeCutter() {
         stepperCutter.stop();
         stepperCutter.setCurrentPosition(0);
         stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
-        stepperCutter.move(-200);
+        stepperCutter.move(0);
         stepperCutterSafetyFlag = 0;
         stepperCutterHomedFlag = 1;
       }
