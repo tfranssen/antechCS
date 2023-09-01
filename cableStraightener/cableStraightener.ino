@@ -33,17 +33,25 @@ int cutterServoRPM = 1150;
 int straightenerServoRPM = 1400;
 int cutterSteps = 7250;
 int cutterMaxSpeedSetting = 700;
-int cutterMaxSpeedSettingDown = 4000; //Dit is de neergaande beweging
+int cutterMaxSpeedSettingDown = 4000;  //Dit is de neergaande beweging
+
+int stepsPerMM = 1315;          // This is the number of steps on the stepper motors for feeding 1 mm of cable
+int pulsesPerMM = 1000;         // This is the number of pulses on the rotary encoder for 1 mm of cable
+int delayBeforeFeeding = 500;   // Delay in ms between starting straigther and start feeding
+int delayAfterFeeding = 1000;   // Delay in ms between starting straigther and start feeding
+int delayBeforeCutting = 4000;  // Delay in ms between starting the cutter and moving the table
+int delayAfterCutting = 4000;   // Delay in ms between stopping the cutter and turning off the vacuum and power to servo (brake)
+
 
 //Rotary encoder settings
 #define rotaryEncoder CONTROLLINO_IN1
 long rotaryCount = 0;
 long lastRotaryCount = 0;
 
-#define safetyRelay CONTROLLINO_R0                //Relay to release safety
-#define externalPowerOutlet CONTROLLINO_R2        //Relay for vaccuum
-#define safetyStandbyRelay CONTROLLINO_R3         //Standby mode for safety
-#define lightRelay CONTROLLINO_R4                 //Relay for light
+#define safetyRelay CONTROLLINO_R0          //Relay to release safety
+#define externalPowerOutlet CONTROLLINO_R2  //Relay for vaccuum
+#define safetyStandbyRelay CONTROLLINO_R3   //Standby mode for safety
+#define lightRelay CONTROLLINO_R4           //Relay for light
 
 #define cutterServoEnabled CONTROLLINO_R10        //Cutter servo enabled relay
 #define straightenerServoEnabled CONTROLLINO_R12  //straightener servo enabled relay
@@ -56,6 +64,7 @@ long lastRotaryCount = 0;
 
 #define safetyRelayInput CONTROLLINO_A1
 #define safetyButtonInput CONTROLLINO_A2
+
 bool safetyRelayStatus = false;
 bool safetyButtonStatus = false;
 
@@ -70,22 +79,22 @@ int motorId = 0;
 //Proces vars
 int lengthVar = 10;
 int quantityVar = 10;
-
 bool errorFlag = 0;
 bool processingFlag = 0;
 int processingCount = 0;
+int processingStep = 0;
+unsigned long previousMillis = 0;
+unsigned long currentMillis = 0;
 
 //Feeder stepper PINs
 #define stepperFeederStepPin CONTROLLINO_D0
 #define stepperFeerderDirPin CONTROLLINO_D1
 #define stepperFeederEnablePin CONTROLLINO_D2  //Check if this is correct, if the steppers go the wrong way change to CONTROLLINO_D3
-//CONTROLLINO_D3 is connected to DIR of the second stepper motor
 
 //Cutter table stepper PINs
 #define stepperCutterStepPin CONTROLLINO_D4
 #define stepperCutterDirPin CONTROLLINO_D5
 #define stepperCutterEnablePin CONTROLLINO_D6
-
 #define motorInterfaceType 1
 
 AccelStepper stepperFeeder = AccelStepper(motorInterfaceType, stepperFeederStepPin, stepperFeerderDirPin);
@@ -118,8 +127,6 @@ void setup() {
   pinMode(CONTROLLINO_D8, OUTPUT);
   pinMode(CONTROLLINO_D10, OUTPUT);
   pinMode(CONTROLLINO_D11, OUTPUT);
-
-
   pinMode(CONTROLLINO_R0, OUTPUT);
   pinMode(CONTROLLINO_R2, OUTPUT);
   pinMode(CONTROLLINO_R3, OUTPUT);
@@ -176,14 +183,15 @@ void setup() {
   //Light on
   digitalWrite(lightRelay, HIGH);
 
+
   delay(200);
   Serial.println("Setup complete");
-
   digitalWrite(CONTROLLINO_D10, HIGH);
   digitalWrite(CONTROLLINO_D11, HIGH);
 }
 
 void loop() {
+  currentMillis = millis();
   currentPage = myNex.currentPageId;
   safetyRelayStatus = digitalRead(safetyRelayInput);
   safetyButtonStatus = digitalRead(safetyButtonInput);
@@ -220,45 +228,107 @@ void loop() {
 
   if (processingFlag && !errorFlag) {
     if (processingCount < quantityVar) {
-      processingCount++;
-      proccessingStatus = String(processingCount) + " / " + String(quantityVar);
-      myNex.writeStr("t2.txt", proccessingStatus);
-      enableStraightenerServo();
-      delay(100);
-      setStraightenerServoRPM(straightenerServoRPM);
-      delay(500);
-      stepperFeeder.setCurrentPosition(0);
-      stepperFeeder.runToNewPosition(1315*lengthVar);
-      Serial.print("Rotary count: ");
-      Serial.println(rotaryCount);
-      Serial.print("Differance count: ");
-      Serial.println(rotaryCount-lastRotaryCount);
-      lastRotaryCount = rotaryCount;
-      setStraightenerServoRPM(0);
-      delay(1000);
-      disableStraightenerServo();
-      enableExternalPower();
-      enableCutterServo();
-      delay(100);
-      setCutterServoRPM(cutterServoRPM);
-      delay(4000);
-      stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
-      stepperCutter.runToNewPosition(-cutterSteps);
-      stepperCutter.setMaxSpeed(cutterMaxSpeedSettingDown);
-      stepperCutter.runToNewPosition(0);
-      setCutterServoRPM(0);
-      delay(3200);
-      disableCutterServo();
-      disableExternalPower();
+      switch (processingStep) {
+        case 0:
+          // Step 0: Initialize processing
+          processingCount++;
+          proccessingStatus = String(processingCount) + " / " + String(quantityVar);
+          myNex.writeStr("t2.txt", proccessingStatus);
+          enableStraightenerServo();
+          rotaryCount = 0;
+          processingStep++;
+          break;
 
-      delay(500);
+        case 1:
+          // Step 1: Wait for 100 ms to set the RPM of the straightener servo
+          if (currentMillis - previousMillis >= 100) {
+            previousMillis = currentMillis;
+            setStraightenerServoRPM(straightenerServoRPM);
+            processingStep++;
+          }
+          break;
+
+        case 2:
+          // Step 2: Wait for the straigtener to be on full speed
+          if (currentMillis - previousMillis >= delayBeforeFeeding) {
+            previousMillis = currentMillis;
+            stepperFeeder.move(stepsPerMM * lengthVar);
+            processingStep++;
+          }
+          break;
+
+        case 3:
+          // Step 3 checks if feeding is done, if real distance is smaller then expected move again until distance is reached
+          if (stepperFeeder.distanceToGo() == 0) {
+            if (rotaryCount < (pulsesPerMM * lengthVar)) {
+              stepperFeeder.move(((pulsesPerMM * lengthVar) - rotaryCount) * (stepsPerMM / pulsesPerMM));
+            } else {
+              setStraightenerServoRPM(0);
+              previousMillis = currentMillis;
+              processingStep++;
+            }
+          }
+          break;
+
+        case 4:
+          if (currentMillis - previousMillis >= delayAfterFeeding) {
+            disableStraightenerServo();
+            enableExternalPower();
+            enableCutterServo();
+            previousMillis = currentMillis;
+            processingStep++;
+          }
+          break;
+
+        case 5:
+          if (currentMillis - previousMillis >= 100) {
+            setCutterServoRPM(cutterServoRPM);
+            previousMillis = currentMillis;
+            processingStep++;
+          }
+          break;
+
+        case 6:
+          if (currentMillis - previousMillis >= delayBeforeCutting) {
+            stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
+            stepperCutter.moveTo(-cutterSteps);
+            previousMillis = currentMillis;
+            processingStep++;
+          }
+          break;
+
+        case 7:
+          if (stepperCutter.distanceToGo() == 0) {
+            stepperCutter.setMaxSpeed(cutterMaxSpeedSettingDown);
+            stepperCutter.moveTo(0);
+            previousMillis = currentMillis;
+            processingStep++;
+          }
+          break;
+
+        case 8:
+          if (stepperCutter.distanceToGo() == 0) {
+            setCutterServoRPM(0);
+            previousMillis = currentMillis;
+            processingStep++;
+          }
+          break;
+
+        case 9:
+          if (currentMillis - previousMillis >= delayAfterCutting) {
+            disableCutterServo();
+            disableExternalPower();
+            previousMillis = currentMillis;
+            processingStep = 0;
+          }
+          break;
+      }
     } else {
       processingFlag = 0;
       myNex.writeStr("page 7");
     }
-
   }
-
+  
   stepperFeeder.run();
   stepperCutter.run();
   myNex.NextionListen();
@@ -278,7 +348,7 @@ void trigger0() {
     Serial.println("Start cut rotation");
     enableCutterServo();
     enableExternalPower();
-    
+
     delay(100);
     setCutterServoRPM(cutterServoRPM);
     delay(5000);
@@ -286,7 +356,7 @@ void trigger0() {
     stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
     stepperCutter.runToNewPosition(-cutterSteps);
     Serial.println("Move table down");
-    stepperCutter.setMaxSpeed(cutterMaxSpeedSettingDown); 
+    stepperCutter.setMaxSpeed(cutterMaxSpeedSettingDown);
     stepperCutter.runToNewPosition(0);
     Serial.println("Stop cut rotation");
     setCutterServoRPM(0);
@@ -374,7 +444,6 @@ void trigger22() {
     Serial.println("Button pressed: Feed release");
   }
   stepperFeeder.stop();
-
 }
 
 //Ref cut
@@ -391,8 +460,6 @@ void trigger7() {
   delay(3000);
   setCutterServoRPM(0);
   delay(500);
-
-
 }
 
 //Ref cut page next
@@ -406,7 +473,6 @@ void trigger8() {
   processingCount = 0;
   stepperFeeder.setCurrentPosition(0);
   processingFlag = 1;
-
 }
 
 //Stop button at processing page
@@ -431,7 +497,6 @@ void trigger11() {
   setStraightenerServoRPM(0);
   delay(1000);
   disableStraightenerServo();
-
 }
 
 //Rotate +
