@@ -2,6 +2,7 @@
 #include <Controllino.h>
 #include "EasyNextionLibrary.h"
 #include "SensorModbusMaster.h"
+#include <Encoder.h>
 
 //Stepper cutter settings
 //Current: 4.0A RMS, Full Current
@@ -35,8 +36,8 @@ int cutterSteps = 7250;
 int cutterMaxSpeedSetting = 700;
 int cutterMaxSpeedSettingDown = 4000;  //Dit is de neergaande beweging
 
-int stepsPerMM = 1315;          // This is the number of steps on the stepper motors for feeding 1 mm of cable
-int pulsesPerMM = 1000;         // This is the number of pulses on the rotary encoder for 1 mm of cable
+int stepsPerMM = 132;           // This is the number of steps on the stepper motors for feeding 1 mm of cable
+float pulsesPerMM = 48.2;           // This is the number of pulses on the rotary encoder for 1 mm of cable
 int delayBeforeFeeding = 500;   // Delay in ms between starting straigther and start feeding
 int delayAfterFeeding = 1000;   // Delay in ms between starting straigther and start feeding
 int delayBeforeCutting = 4000;  // Delay in ms between starting the cutter and moving the table
@@ -44,7 +45,8 @@ int delayAfterCutting = 4000;   // Delay in ms between stopping the cutter and t
 
 
 //Rotary encoder settings
-#define rotaryEncoder CONTROLLINO_IN1
+Encoder myEnc(CONTROLLINO_IN0, CONTROLLINO_IN1);
+
 long rotaryCount = 0;
 long lastRotaryCount = 0;
 
@@ -77,7 +79,7 @@ modbusMaster modbus2;
 int motorId = 0;
 
 //Proces vars
-int lengthVar = 10;
+int lengthVar = 100;
 int quantityVar = 10;
 bool errorFlag = 0;
 bool processingFlag = 0;
@@ -101,15 +103,17 @@ AccelStepper stepperFeeder = AccelStepper(motorInterfaceType, stepperFeederStepP
 AccelStepper stepperCutter = AccelStepper(motorInterfaceType, stepperCutterStepPin, stepperCutterDirPin);
 
 int feederMaxSpeedSetting = 5000;
-int feederExtrudeAccel = 10000;
-int cutterExtrudeAccel = 10000;
+int feederCorrectionMaxSpeedSetting = 1000;
+int feederAccel = 5000;
+int feederCorrectionAccel = 2000;
+int cutterAccel = 10000;
 int currentPage = 0;
 int lastPage = 0;
 bool debug = true;
 bool cutActive = false;
 bool cutterTableMoveUp = 0;
 
-String proccessingStatus = "";
+String processingStatus = "";
 
 bool stepperCutterHomedFlag = 0;
 bool stepperCutterSafetyFlag = 0;
@@ -141,9 +145,9 @@ void setup() {
   pinMode(cuttingTableBottomSensor, INPUT);
   pinMode(cuttingTableTopSensor, INPUT);
 
-  //Setup interupts
-  pinMode(rotaryEncoder, INPUT);
-  attachInterrupt(digitalPinToInterrupt(rotaryEncoder), rotaryPrint, CHANGE);
+  // //Setup interupts
+  // pinMode(rotaryEncoder, INPUT);
+  // attachInterrupt(digitalPinToInterrupt(rotaryEncoder), rotaryPrint, CHANGE);
 
   //Nextion setup
   myNex.begin(9600);
@@ -173,11 +177,11 @@ void setup() {
   setStraightenerServoRPM(0);
 
   stepperFeeder.setMaxSpeed(feederMaxSpeedSetting);
-  stepperFeeder.setAcceleration(feederExtrudeAccel);
+  stepperFeeder.setAcceleration(feederAccel);
   stepperFeeder.enableOutputs();
 
   stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
-  stepperCutter.setAcceleration(cutterExtrudeAccel);
+  stepperCutter.setAcceleration(cutterAccel);
   stepperCutter.enableOutputs();
 
   //Light on
@@ -202,6 +206,9 @@ void loop() {
     myNex.writeStr("page 14");
     delay(100);
     myNex.writeStr("t5.txt", "Emergency button activated");
+    disableExternalPower();
+    processingStep = 0;
+    processingFlag = false;
     errorFlag = 1;
   }
 
@@ -210,6 +217,9 @@ void loop() {
     myNex.writeStr("page 14");
     delay(100);
     myNex.writeStr("t5.txt", "Safety activated");
+    disableExternalPower();
+    processingStep = 0;
+    processingFlag = false;    
     errorFlag = 1;
   }
 
@@ -231,28 +241,34 @@ void loop() {
       switch (processingStep) {
         case 0:
           // Step 0: Initialize processing
-          processingCount++;
-          proccessingStatus = String(processingCount) + " / " + String(quantityVar);
-          myNex.writeStr("t2.txt", proccessingStatus);
+          Serial.println("Start processing");
+          processingStatus = String(processingCount + 1) + " / " + String(quantityVar);
+          myNex.writeStr("t2.txt", processingStatus);
           enableStraightenerServo();
-          rotaryCount = 0;
+          myEnc.readAndReset();
           processingStep++;
+          //Serial.println("Next step");
           break;
 
         case 1:
           // Step 1: Wait for 100 ms to set the RPM of the straightener servo
           if (currentMillis - previousMillis >= 100) {
+            Serial.println("Turn on straightener");
             previousMillis = currentMillis;
             setStraightenerServoRPM(straightenerServoRPM);
             processingStep++;
+            //Serial.println("Next step");
           }
           break;
 
         case 2:
           // Step 2: Wait for the straigtener to be on full speed
           if (currentMillis - previousMillis >= delayBeforeFeeding) {
+            Serial.println("Turn on feeder");
             previousMillis = currentMillis;
             stepperFeeder.move(stepsPerMM * lengthVar);
+            Serial.println("Move feeder: " + String(stepsPerMM * lengthVar) + " steps");
+            Serial.println("Expected pulses: " + String(pulsesPerMM * lengthVar) + " pulses");
             processingStep++;
           }
           break;
@@ -260,10 +276,25 @@ void loop() {
         case 3:
           // Step 3 checks if feeding is done, if real distance is smaller then expected move again until distance is reached
           if (stepperFeeder.distanceToGo() == 0) {
-            if (rotaryCount < (pulsesPerMM * lengthVar)) {
-              stepperFeeder.move(((pulsesPerMM * lengthVar) - rotaryCount) * (stepsPerMM / pulsesPerMM));
+            if (-myEnc.read() < (pulsesPerMM * lengthVar)) {
+              Serial.println("Rotary pulses: " + String(-myEnc.read()));
+              float feedCorrection = (((pulsesPerMM * lengthVar) - -myEnc.read()) * (stepsPerMM / pulsesPerMM));
+              if (feedCorrection >= 300) {
+                stepperFeeder.setMaxSpeed(feederCorrectionMaxSpeedSetting);
+                stepperFeeder.setAcceleration(feederCorrectionAccel);                
+                Serial.println("Feed correction: " + String(int(round(feedCorrection))) + " steps");
+                stepperFeeder.move(int(round(feedCorrection)));
+              } else {
+                Serial.println("Feed correction: 1 steps");
+                stepperFeeder.move(1);
+              }
             } else {
+              stepperFeeder.setMaxSpeed(feederMaxSpeedSetting);
+              stepperFeeder.setAcceleration(feederAccel);
               setStraightenerServoRPM(0);
+              Serial.println("Rotary pulses after transport: " + String(-myEnc.read()));
+
+
               previousMillis = currentMillis;
               processingStep++;
             }
@@ -272,6 +303,7 @@ void loop() {
 
         case 4:
           if (currentMillis - previousMillis >= delayAfterFeeding) {
+            Serial.println("Rotary pulses after transport + delay: " + String(-myEnc.read()));
             disableStraightenerServo();
             enableExternalPower();
             enableCutterServo();
@@ -291,6 +323,7 @@ void loop() {
         case 6:
           if (currentMillis - previousMillis >= delayBeforeCutting) {
             stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
+            Serial.println("Rotary pulses before cut: " + String(-myEnc.read()));
             stepperCutter.moveTo(-cutterSteps);
             previousMillis = currentMillis;
             processingStep++;
@@ -316,10 +349,12 @@ void loop() {
 
         case 9:
           if (currentMillis - previousMillis >= delayAfterCutting) {
+            Serial.println("Rotary pulses after cut: " + String(-myEnc.read()));
             disableCutterServo();
             disableExternalPower();
             previousMillis = currentMillis;
             processingStep = 0;
+            processingCount++;
           }
           break;
       }
@@ -328,7 +363,7 @@ void loop() {
       myNex.writeStr("page 7");
     }
   }
-  
+
   stepperFeeder.run();
   stepperCutter.run();
   myNex.NextionListen();
@@ -596,6 +631,8 @@ void trigger20() {
 //Reset after error
 void trigger21() {
   processingFlag = 0;
+  processingStep = 0;
+  processingCount = 0;
   resetSafety();
   setSafetyStandby();
   myNex.writeStr("page 1");
@@ -714,6 +751,6 @@ void moveCutTableDown() {
   }
 }
 
-void rotaryPrint() {
-  rotaryCount++;
-}
+// void rotaryPrint() {
+//   rotaryCount++;
+// }
