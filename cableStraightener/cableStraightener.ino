@@ -36,12 +36,12 @@ int cutterSteps = 7250;
 int cutterMaxSpeedSetting = 700;
 int cutterMaxSpeedSettingDown = 4000;  //Dit is de neergaande beweging
 
-int stepsPerMM = 132;           // This is the number of steps on the stepper motors for feeding 1 mm of cable
-float pulsesPerMM = 48.2;           // This is the number of pulses on the rotary encoder for 1 mm of cable
-int delayBeforeFeeding = 500;   // Delay in ms between starting straigther and start feeding
-int delayAfterFeeding = 1000;   // Delay in ms between starting straigther and start feeding
-int delayBeforeCutting = 4000;  // Delay in ms between starting the cutter and moving the table
-int delayAfterCutting = 4000;   // Delay in ms between stopping the cutter and turning off the vacuum and power to servo (brake)
+int stepsPerMM = 120;          // This is the number of steps on the stepper motors for feeding 1 mm of cable
+float pulsesPerMM = 48.2;      // This is the number of pulses on the rotary encoder for 1 mm of cable
+int delayBeforeFeeding = 500;  // Delay in ms between starting straigther and start feeding
+int delayAfterFeeding = 1000;  // Delay in ms between starting straigther and start feeding
+int delayBeforeCutting = 100;  // Delay in ms between starting the cutter and moving the table
+int delayAfterCutting = 100;   // Delay in ms between stopping the cutter and turning off the vacuum and power to servo (brake)
 
 
 //Rotary encoder settings
@@ -219,7 +219,7 @@ void loop() {
     myNex.writeStr("t5.txt", "Safety activated");
     disableExternalPower();
     processingStep = 0;
-    processingFlag = false;    
+    processingFlag = false;
     errorFlag = 1;
   }
 
@@ -245,6 +245,8 @@ void loop() {
           processingStatus = String(processingCount + 1) + " / " + String(quantityVar);
           myNex.writeStr("t2.txt", processingStatus);
           enableStraightenerServo();
+          enableCutterServo();
+          setCutterServoRPM(cutterServoRPM);
           myEnc.readAndReset();
           processingStep++;
           //Serial.println("Next step");
@@ -281,11 +283,11 @@ void loop() {
               float feedCorrection = (((pulsesPerMM * lengthVar) - -myEnc.read()) * (stepsPerMM / pulsesPerMM));
               if (feedCorrection >= 300) {
                 stepperFeeder.setMaxSpeed(feederCorrectionMaxSpeedSetting);
-                stepperFeeder.setAcceleration(feederCorrectionAccel);                
-                Serial.println("Feed correction: " + String(int(round(feedCorrection))) + " steps");
+                stepperFeeder.setAcceleration(feederCorrectionAccel);
+                // Serial.println("Feed correction: " + String(int(round(feedCorrection))) + " steps");
                 stepperFeeder.move(int(round(feedCorrection)));
               } else {
-                Serial.println("Feed correction: 1 steps");
+                // Serial.println("Feed correction: 1 steps");
                 stepperFeeder.move(1);
               }
             } else {
@@ -306,7 +308,7 @@ void loop() {
             Serial.println("Rotary pulses after transport + delay: " + String(-myEnc.read()));
             disableStraightenerServo();
             enableExternalPower();
-            enableCutterServo();
+            // enableCutterServo();
             previousMillis = currentMillis;
             processingStep++;
           }
@@ -314,7 +316,6 @@ void loop() {
 
         case 5:
           if (currentMillis - previousMillis >= 100) {
-            setCutterServoRPM(cutterServoRPM);
             previousMillis = currentMillis;
             processingStep++;
           }
@@ -341,7 +342,7 @@ void loop() {
 
         case 8:
           if (stepperCutter.distanceToGo() == 0) {
-            setCutterServoRPM(0);
+            // setCutterServoRPM(0);
             previousMillis = currentMillis;
             processingStep++;
           }
@@ -350,7 +351,7 @@ void loop() {
         case 9:
           if (currentMillis - previousMillis >= delayAfterCutting) {
             Serial.println("Rotary pulses after cut: " + String(-myEnc.read()));
-            disableCutterServo();
+            // disableCutterServo();
             disableExternalPower();
             previousMillis = currentMillis;
             processingStep = 0;
@@ -360,6 +361,9 @@ void loop() {
       }
     } else {
       processingFlag = 0;
+      setCutterServoRPM(0);
+      delay(3000);
+      disableCutterServo();
       myNex.writeStr("page 7");
     }
   }
