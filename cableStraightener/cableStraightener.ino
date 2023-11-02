@@ -33,7 +33,9 @@ EasyNex myNex(Serial2);
 int cutterServoRPM = 1150;
 int straightenerServoRPM = 1400;
 int cutterSteps = 7250;
-int cutterMaxSpeedSetting = 700;
+int cutterMaxSpeedSettingDefault = 7;  //Divided by 100 because of multiplication of percentage
+int cutterMaxSpeedSettingPercentage = 100;
+int cutterMaxSpeedSetting = cutterMaxSpeedSettingDefault * cutterMaxSpeedSettingPercentage;
 int cutterMaxSpeedSettingDown = 4000;  //Dit is de neergaande beweging
 
 int stepsPerMM = 120;          // This is the number of steps on the stepper motors for feeding 1 mm of cable
@@ -83,6 +85,8 @@ int lengthVar = 100;
 int quantityVar = 10;
 bool errorFlag = 0;
 bool processingFlag = 0;
+bool homeCutterFlag = 0;
+bool homeCutterInProduction = 0;
 int processingCount = 0;
 int processingStep = 0;
 unsigned long previousMillis = 0;
@@ -117,6 +121,23 @@ String processingStatus = "";
 
 bool stepperCutterHomedFlag = 0;
 bool stepperCutterSafetyFlag = 0;
+
+int homeCutterState = 0;
+
+bool refCutFlag = false;
+enum CutState {
+  INIT,
+  MOVE_TABLE_UP,
+  CHECK_MOVE_TABLE_UP,
+  MOVE_TABLE_DOWN,
+  CHECK_MOVE_TABLE_DOWN,
+  STOP_CUT_ROTATION,
+  FINISHED
+};
+
+// Initial state
+CutState refCutStep = INIT;
+unsigned long lastMillis = 0;
 
 void setup() {
   //PINs settings
@@ -187,19 +208,19 @@ void setup() {
   //Light on
   digitalWrite(lightRelay, HIGH);
 
-
   delay(200);
   Serial.println("Setup complete");
   digitalWrite(CONTROLLINO_D10, HIGH);
   digitalWrite(CONTROLLINO_D11, HIGH);
+  lastMillis = millis();  // Initialize the timer
 }
 
 void loop() {
   currentMillis = millis();
+  unsigned long interval = 0;
   currentPage = myNex.currentPageId;
   safetyRelayStatus = digitalRead(safetyRelayInput);
   safetyButtonStatus = digitalRead(safetyButtonInput);
-
 
   if (safetyButtonStatus && currentPage != 14) {
     Serial.println("Safety button activated");
@@ -229,12 +250,142 @@ void loop() {
     Serial.println(currentPage);
 
     if (currentPage == 2) {
-      delay(500);
+      delay(250);
       myNex.writeStr("t0.txt", String(lengthVar));
       delay(50);
       myNex.writeStr("t1.txt", String(quantityVar));
     }
+
+    if (currentPage == 15) {
+      delay(250);
+      myNex.writeStr("t6.txt", String(cutterServoRPM * 3));
+      delay(50);
+      myNex.writeStr("t7.txt", String(cutterMaxSpeedSettingPercentage));
+    }
   }
+
+  if (refCutFlag && !errorFlag) {
+    switch (refCutStep) {
+      case INIT:
+        // Initial state
+        Serial.println("Start cut rotation");
+        enableCutterServo();
+        enableExternalPower();
+        setCutterServoRPM(cutterServoRPM);
+        interval = 5000;
+        if (currentMillis - lastMillis >= interval) {
+          lastMillis = currentMillis;
+          refCutStep = MOVE_TABLE_UP;  // Move to the new state
+        }
+        break;
+
+      case MOVE_TABLE_UP:
+        // Moving the table up state
+        Serial.println("Move table up");
+        stepperCutter.moveTo(-cutterSteps);
+        refCutStep = CHECK_MOVE_TABLE_UP;
+        break;
+
+      case CHECK_MOVE_TABLE_UP:
+        // Check if the move is completed
+        if (stepperCutter.distanceToGo() == 0) {
+          refCutStep = MOVE_TABLE_DOWN;
+        }
+        break;
+
+      case MOVE_TABLE_DOWN:
+        // Moving the table down state
+        Serial.println("Move table down");
+        stepperCutter.moveTo(0);
+        refCutStep = CHECK_MOVE_TABLE_DOWN;
+        break;
+
+      case CHECK_MOVE_TABLE_DOWN:
+        // Check if the move is completed
+        if (stepperCutter.distanceToGo() == 0) {
+          setCutterServoRPM(0);
+          refCutStep = STOP_CUT_ROTATION;
+          lastMillis = currentMillis;
+        }
+        break;
+
+      case STOP_CUT_ROTATION:
+        // Stop cut rotation state
+        interval = 1000;
+        if (currentMillis - lastMillis >= interval) {
+          Serial.println("Stop cut rotation");
+          disableCutterServo();
+          disableExternalPower();
+          refCutStep = FINISHED;
+        }
+        break;
+
+      case FINISHED:
+        // Finished state - you can decide if you want to stay here or reset to INIT
+        // refCutStep = INIT; // Uncomment this line to reset to INIT state
+        refCutFlag = false;
+        break;
+    }
+  }
+
+  if (homeCutterFlag && !errorFlag) {
+    switch (homeCutterState) {
+      case 0:
+        stepperCutterHomedFlag = 0;
+        stepperCutterSafetyFlag = 0;
+        Serial.println("HomeCutter: Starting homing process");
+        homeCutterState = 1;
+        break;
+
+      case 1:
+        if (digitalRead(cuttingTableBottomSensor)) {
+          stepperCutter.moveTo(-1150);
+          homeCutterState = 2;
+          Serial.println("HomeCutter: Sensor active, moving cutter to start position.");
+        } else {
+          homeCutterState = 3;
+          Serial.println("HomeCutter: Sensor not active, skipping to step 3.");
+        }
+        break;
+
+      case 2:
+        if (stepperCutter.distanceToGo() == 0) {
+          homeCutterState = 3;
+          Serial.println("HomeCutter: Cutter at starting position, proceeding to step 3.");
+        }
+        break;
+
+      case 3:
+        stepperCutter.move(10000);
+        homeCutterState = 4;
+        Serial.println("HomeCutter: Moving cutter down.");
+        break;
+
+      case 4:
+        if (digitalRead(cuttingTableBottomSensor)) {
+          homeCutterState = 5;
+          Serial.println("HomeCutter: Waiting for sensor to become active again.");
+        }
+        break;
+
+      case 5:
+        if (digitalRead(cuttingTableBottomSensor)) {
+          // Set the current position as the new zero position
+          stepperCutter.setCurrentPosition(0);
+          stepperCutterHomedFlag = 1;
+          homeCutterState = 0;  // Reset for next use
+          Serial.println("HomeCutter: Homing complete, resetting flags and positions.");
+          stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
+          homeCutterFlag = false;
+          if (homeCutterInProduction) {
+            myNex.writeStr("page 4");
+            homeCutterInProduction = false;
+          }
+        }
+        break;
+    }
+  }
+
 
   if (processingFlag && !errorFlag) {
     if (processingCount < quantityVar) {
@@ -272,6 +423,7 @@ void loop() {
             Serial.println("Move feeder: " + String(stepsPerMM * lengthVar) + " steps");
             Serial.println("Expected pulses: " + String(pulsesPerMM * lengthVar) + " pulses");
             processingStep++;
+            lastMillis = millis();
           }
           break;
 
@@ -295,11 +447,27 @@ void loop() {
               stepperFeeder.setAcceleration(feederAccel);
               setStraightenerServoRPM(0);
               Serial.println("Rotary pulses after transport: " + String(-myEnc.read()));
-
-
               previousMillis = currentMillis;
               processingStep++;
             }
+          }
+          //Dynamical time out if feeding fails
+          if (currentMillis - lastMillis >= (lengthVar * 200)) {
+            Serial.println("Feeding failed (timeout)");
+            processingStep = 0;
+            processingFlag = false;
+            errorFlag = 1;
+            disableExternalPower();
+            setStraightenerServoRPM(0);
+            setCutterServoRPM(0);
+            stepperFeeder.setCurrentPosition(0);
+            delay(500);
+            disableCutterServo();
+            disableStraightenerServo();
+            delay(500);
+            myNex.writeStr("page 14");
+            delay(100);
+            myNex.writeStr("t5.txt", "Feeding failed (timeout)");
           }
           break;
 
@@ -343,6 +511,7 @@ void loop() {
         case 8:
           if (stepperCutter.distanceToGo() == 0) {
             // setCutterServoRPM(0);
+            stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
             previousMillis = currentMillis;
             processingStep++;
           }
@@ -356,15 +525,17 @@ void loop() {
             previousMillis = currentMillis;
             processingStep = 0;
             processingCount++;
+            lastMillis = millis();
           }
           break;
       }
     } else {
-      processingFlag = 0;
-      setCutterServoRPM(0);
-      delay(3000);
-      disableCutterServo();
-      myNex.writeStr("page 7");
+      if (currentMillis - lastMillis >= 3000) {
+        setCutterServoRPM(0);
+        disableCutterServo();
+        myNex.writeStr("page 7");
+        processingFlag = 0;
+      }
     }
   }
 
@@ -376,34 +547,11 @@ void loop() {
 //Length -
 void trigger0() {
 
-  if (currentPage == 2)
+  if (currentPage == 2) {
     if (lengthVar > -1) {
       lengthVar--;
     }
-  myNex.writeStr("t0.txt", String(lengthVar));
-
-
-  if (currentPage == 5) {
-    Serial.println("Start cut rotation");
-    enableCutterServo();
-    enableExternalPower();
-
-    delay(100);
-    setCutterServoRPM(cutterServoRPM);
-    delay(5000);
-    Serial.println("Move table up");
-    stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
-    stepperCutter.runToNewPosition(-cutterSteps);
-    Serial.println("Move table down");
-    stepperCutter.setMaxSpeed(cutterMaxSpeedSettingDown);
-    stepperCutter.runToNewPosition(0);
-    Serial.println("Stop cut rotation");
-    setCutterServoRPM(0);
-    delay(1000);
-    disableCutterServo();
-    disableExternalPower();
-
-    delay(500);
+    myNex.writeStr("t0.txt", String(lengthVar));
   }
 
   if (debug) {
@@ -451,8 +599,7 @@ void trigger4() {
   delay(100);
   myNex.writeStr("page 3");
   homeCutter();
-  delay(100);
-  myNex.writeStr("page 4");
+  homeCutterInProduction = true;
   if (debug) {
     Serial.println("Button pressed: Start button");
   }
@@ -471,10 +618,10 @@ void trigger6() {
   if (debug) {
     Serial.println("Button pressed: Feed push");
   }
+  enableStraightenerServo();
+  setStraightenerServoRPM(straightenerServoRPM);
+  delay(delayBeforeFeeding);
   stepperFeeder.move(200000);
-  if (debug) {
-    Serial.println("Button pressed: Feed +");
-  }
 }
 
 //Feed release button
@@ -482,7 +629,10 @@ void trigger22() {
   if (debug) {
     Serial.println("Button pressed: Feed release");
   }
-  stepperFeeder.stop();
+  setStraightenerServoRPM(0);
+  delay(delayAfterFeeding);
+  disableStraightenerServo();
+  stepperFeeder.setCurrentPosition(0);
 }
 
 //Ref cut
@@ -490,15 +640,9 @@ void trigger7() {
   if (debug) {
     Serial.println("Button pressed: Ref cut");
   }
-
-  setCutterServoRPM(200);
-  delay(1000);
-  moveCutTableUp();
-  delay(1000);
-  moveCutTableDown();
-  delay(3000);
-  setCutterServoRPM(0);
-  delay(500);
+  refCutStep = INIT;
+  lastMillis = currentMillis;
+  refCutFlag = true;
 }
 
 //Ref cut page next
@@ -595,7 +739,6 @@ void trigger23() {
   if (debug) {
     Serial.println("Button pressed: Cut released ");
   }
-
   if (cutActive == false) {
     enableCutterServo();
     delay(100);
@@ -608,7 +751,6 @@ void trigger23() {
     cutActive = false;
   }
 }
-
 
 //Vacuum
 void trigger18() {
@@ -642,16 +784,54 @@ void trigger21() {
   myNex.writeStr("page 1");
   setCutterServoRPM(0);
   setStraightenerServoRPM(0);
-
+  stepperFeeder.setMaxSpeed(feederMaxSpeedSetting);
+  stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
   delay(100);
-
   errorFlag = 0;
-
-
-
 
   if (debug) {
     Serial.println("Button pressed: Reset at error screen");
+  }
+}
+
+//RPM -
+void trigger24() {
+  cutterServoRPM = cutterServoRPM - 10;
+  myNex.writeStr("t6.txt", String(cutterServoRPM * 3));
+  if (debug) {
+    Serial.println("Button pressed: RPM -, new RPM: " + String(cutterServoRPM));
+  }
+}
+
+//RPM +
+void trigger25() {
+  cutterServoRPM = cutterServoRPM + 10;
+  myNex.writeStr("t6.txt", String(cutterServoRPM * 3));
+  if (debug) {
+    Serial.println("Button pressed: RPM +, new RPM: " + String(cutterServoRPM));
+  }
+}
+
+//Lin speed -
+void trigger26() {
+  cutterMaxSpeedSettingPercentage--;
+  cutterMaxSpeedSetting = cutterMaxSpeedSettingDefault * cutterMaxSpeedSettingPercentage;
+  stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
+  myNex.writeStr("t7.txt", String(cutterMaxSpeedSettingPercentage));
+  if (debug) {
+    Serial.println("Button pressed: Lin speed -, new speed: " + String(cutterMaxSpeedSetting));
+  }
+}
+
+//Lin speed +
+void trigger27() {
+
+  cutterMaxSpeedSettingPercentage++;
+  cutterMaxSpeedSetting = cutterMaxSpeedSettingDefault * cutterMaxSpeedSettingPercentage;
+  stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
+  myNex.writeStr("t7.txt", String(cutterMaxSpeedSettingPercentage));
+  if (debug) {
+    Serial.println("Button pressed: Lin speed +, new speed: " + String(cutterMaxSpeedSetting));
   }
 }
 
@@ -706,37 +886,9 @@ void setStraightenerServoRPM(int rpm) {
 }
 
 void homeCutter() {
-  stepperCutterHomedFlag = 0;
-  stepperCutterSafetyFlag = 0;
-  Serial.print("stepperCutterHomedFlag: ");
-  Serial.println(stepperCutterHomedFlag);
-  Serial.print("stepperCutterSafetyFlag: ");
-  Serial.println(stepperCutterSafetyFlag);
-  while (!stepperCutterHomedFlag) {
-    if (!stepperCutterSafetyFlag) {
-      if (digitalRead(cuttingTableBottomSensor)) {
-        stepperCutter.setCurrentPosition(0);
-        stepperCutter.runToNewPosition(-1500);
-        stepperCutterSafetyFlag = 1;
-      } else {
-        stepperCutterSafetyFlag = 1;
-      }
-    } else {
-      if (!digitalRead(cuttingTableBottomSensor)) {
-        stepperCutter.setMaxSpeed(600);
-        stepperCutter.move(10000);
-      }
-      if (digitalRead(cuttingTableBottomSensor)) {
-        stepperCutter.stop();
-        stepperCutter.setCurrentPosition(0);
-        stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
-        stepperCutter.move(0);
-        stepperCutterSafetyFlag = 0;
-        stepperCutterHomedFlag = 1;
-      }
-    }
-    stepperCutter.run();
-  }
+  stepperCutterHomedFlag = false;
+  homeCutterState = 0;
+  homeCutterFlag = true;
 }
 
 void moveCutTableUp() {
