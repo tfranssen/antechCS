@@ -68,6 +68,7 @@ long lastRotaryCount = 0;
 
 #define safetyRelayInput CONTROLLINO_A1
 #define safetyButtonInput CONTROLLINO_A2
+#define cuttingDiskVisibleSensor CONTROLLINO_A7
 
 bool safetyRelayStatus = false;
 bool safetyButtonStatus = false;
@@ -162,7 +163,7 @@ void setup() {
   pinMode(CONTROLLINO_A0, INPUT);
   pinMode(CONTROLLINO_A1, INPUT);
   pinMode(CONTROLLINO_A2, INPUT);
-
+  pinMode(cuttingDiskVisibleSensor, INPUT);  
   pinMode(cuttingTableBottomSensor, INPUT);
   pinMode(cuttingTableTopSensor, INPUT);
 
@@ -378,8 +379,21 @@ void loop() {
           stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
           homeCutterFlag = false;
           if (homeCutterInProduction) {
-            myNex.writeStr("page 4");
-            homeCutterInProduction = false;
+            // Check if the cutting disk is visible using the sensor
+            if (digitalRead(cuttingDiskVisibleSensor)) {
+              Serial.println("HomeCutter: Cutting disk is not visible.");
+              processingStep = 0;
+              processingFlag = false;
+              errorFlag = 1;
+              stepperCutter.setCurrentPosition(0);
+              myNex.writeStr("page 14");
+              delay(100);
+              myNex.writeStr("t5.txt", "Cutting disk is not visible"); 
+              break;           
+            } else {
+              myNex.writeStr("page 4");
+              homeCutterInProduction = false;
+            }
           }
         }
         break;
@@ -493,6 +507,19 @@ void loop() {
           if (currentMillis - previousMillis >= delayBeforeCutting) {
             stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
             Serial.println("Rotary pulses before cut: " + String(-myEnc.read()));
+            if (digitalRead(cuttingDiskVisibleSensor)) {
+              Serial.println("HomeCutter: Cutting disk is not visible.");
+              processingStep = 0;
+              processingFlag = false;
+              errorFlag = 1;
+              disableExternalPower();
+              disableCutterServo();
+              disableStraightenerServo();
+              myNex.writeStr("page 14");
+              delay(100);
+              myNex.writeStr("t5.txt", "Cutting disk is not visible"); 
+              break;            
+            }             
             stepperCutter.moveTo(-cutterSteps);
             previousMillis = currentMillis;
             processingStep++;
