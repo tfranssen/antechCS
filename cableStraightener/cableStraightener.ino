@@ -867,6 +867,7 @@ void trigger21() {
   processingFlag = 0;
   processingStep = 0;
   processingCount = 0;
+  stopButtonFlag = 0;
   resetSafety();
   setSafetyStandby();
   myNex.writeStr("page 1");
