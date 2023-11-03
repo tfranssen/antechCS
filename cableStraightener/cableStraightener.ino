@@ -3,6 +3,8 @@
 #include "EasyNextionLibrary.h"
 #include "SensorModbusMaster.h"
 #include <Encoder.h>
+#include "RingEEPROM.h"
+
 
 //Stepper cutter settings
 //Current: 4.0A RMS, Full Current
@@ -118,6 +120,8 @@ bool debug = true;
 bool cutActive = false;
 bool cutterTableMoveUp = 0;
 
+long int cutCounterTemp = 0;
+
 String processingStatus = "";
 
 bool stepperCutterHomedFlag = 0;
@@ -139,6 +143,22 @@ enum CutState {
 // Initial state
 CutState refCutStep = INIT;
 unsigned long lastMillis = 0;
+
+//EEPROM settings
+#define FIRST_ADDR 0
+#define BUFFER_SIZE 4
+#define PARAM_PACKET_SIZE 6
+typedef struct cutCounter {
+  int cuts;
+};
+
+cutCounter counterWrite, counterRead;
+
+byte writeBuffer[PARAM_PACKET_SIZE];
+byte readBuffer[PARAM_PACKET_SIZE];
+
+RingEEPROM myeepRom(FIRST_ADDR, BUFFER_SIZE, sizeof(cutCounter));
+
 
 void setup() {
   //PINs settings
@@ -163,7 +183,7 @@ void setup() {
   pinMode(CONTROLLINO_A0, INPUT);
   pinMode(CONTROLLINO_A1, INPUT);
   pinMode(CONTROLLINO_A2, INPUT);
-  pinMode(cuttingDiskVisibleSensor, INPUT);  
+  pinMode(cuttingDiskVisibleSensor, INPUT);
   pinMode(cuttingTableBottomSensor, INPUT);
   pinMode(cuttingTableTopSensor, INPUT);
 
@@ -214,6 +234,15 @@ void setup() {
   digitalWrite(CONTROLLINO_D10, HIGH);
   digitalWrite(CONTROLLINO_D11, HIGH);
   lastMillis = millis();  // Initialize the timer
+
+
+  //First time
+  // counterWrite.cuts = 0;
+  // myeepRom.savePacket((byte*)&counterWrite);
+
+  //Read latest cut count
+  myeepRom.readPacket((byte*)&counterRead);
+  Serial.println("Number of cuts: " + String(counterRead.cuts));
 }
 
 void loop() {
@@ -262,6 +291,13 @@ void loop() {
       myNex.writeStr("t6.txt", String(cutterServoRPM * 3));
       delay(50);
       myNex.writeStr("t7.txt", String(cutterMaxSpeedSettingPercentage));
+    }
+
+    if (currentPage == 12) {
+      myeepRom.readPacket((byte*)&counterRead);
+      Serial.println("Number of cuts: " + String(counterRead.cuts));
+      delay(250);
+      myNex.writeStr("t5.txt", String(counterRead.cuts));
     }
   }
 
@@ -388,8 +424,8 @@ void loop() {
               stepperCutter.setCurrentPosition(0);
               myNex.writeStr("page 14");
               delay(100);
-              myNex.writeStr("t5.txt", "Cutting disk is not visible"); 
-              break;           
+              myNex.writeStr("t5.txt", "Cutting disk is not visible");
+              break;
             } else {
               myNex.writeStr("page 4");
               homeCutterInProduction = false;
@@ -517,9 +553,9 @@ void loop() {
               disableStraightenerServo();
               myNex.writeStr("page 14");
               delay(100);
-              myNex.writeStr("t5.txt", "Cutting disk is not visible"); 
-              break;            
-            }             
+              myNex.writeStr("t5.txt", "Cutting disk is not visible");
+              break;
+            }
             stepperCutter.moveTo(-cutterSteps);
             previousMillis = currentMillis;
             processingStep++;
@@ -539,6 +575,14 @@ void loop() {
           if (stepperCutter.distanceToGo() == 0) {
             // setCutterServoRPM(0);
             stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
+            myeepRom.readPacket((byte*)&counterRead);
+            counterWrite.cuts = counterRead.cuts + 1;
+            myeepRom.savePacket((byte*)&counterWrite);
+
+            if (debug) {
+              myeepRom.readPacket((byte*)&counterRead);
+              Serial.println("Number of cuts: " + String(counterRead.cuts));
+            }
             previousMillis = currentMillis;
             processingStep++;
           }
@@ -799,6 +843,12 @@ void trigger20() {
   if (debug) {
     Serial.println("Button pressed: Reset at replace disc screen");
   }
+  counterWrite.cuts = 0;
+  myeepRom.savePacket((byte*)&counterWrite);
+  myeepRom.readPacket((byte*)&counterRead);
+  Serial.println("Number of cuts: " + String(counterRead.cuts));
+  delay(250);
+  myNex.writeStr("t5.txt", String(counterRead.cuts));
 }
 
 //Reset after error
