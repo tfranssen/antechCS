@@ -88,6 +88,7 @@ int lengthVar = 100;
 int quantityVar = 10;
 bool errorFlag = 0;
 bool processingFlag = 0;
+bool stopButtonFlag = 0;
 bool homeCutterFlag = 0;
 bool homeCutterInProduction = 0;
 int processingCount = 0;
@@ -441,6 +442,9 @@ void loop() {
     if (processingCount < quantityVar) {
       switch (processingStep) {
         case 0:
+          if (stopButtonFlag) {
+            break;
+          }
           // Step 0: Initialize processing
           Serial.println("Start processing");
           processingStatus = String(processingCount + 1) + " / " + String(quantityVar);
@@ -734,6 +738,13 @@ void trigger9() {
   if (debug) {
     Serial.println("Button pressed: Stop button");
   }
+  
+  if (stopButtonFlag == 0) {
+    stopButtonFlag = 1;
+  } else {
+    stopButtonFlag = 0;
+  }; 
+
 }
 
 //Pause button at processing page
