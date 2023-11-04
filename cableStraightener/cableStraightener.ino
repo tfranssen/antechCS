@@ -584,7 +584,7 @@ void loop() {
             stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
             myeepRom.readPacket((byte*)&counterRead);
             counterWrite.cuts = counterRead.cuts + 1;
-            counterWrite.totalCuts = counterRead.cuts + 1;
+            counterWrite.totalCuts = counterRead.totalCuts + 1;
             myeepRom.savePacket((byte*)&counterWrite);
 
             if (debug) {
