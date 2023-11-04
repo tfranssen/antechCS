@@ -602,6 +602,7 @@ void loop() {
             lastMillis = millis();
             if (stopButtonFlag) {
               processingCount = quantityVar;
+              stopButtonFlag = 0;
             }
           }
           break;
