@@ -121,8 +121,6 @@ bool debug = true;
 bool cutActive = false;
 bool cutterTableMoveUp = 0;
 
-long int cutCounterTemp = 0;
-
 String processingStatus = "";
 
 bool stepperCutterHomedFlag = 0;
@@ -151,6 +149,7 @@ unsigned long lastMillis = 0;
 #define PARAM_PACKET_SIZE 6
 typedef struct cutCounter {
   int cuts;
+  int totalCuts;
 };
 
 cutCounter counterWrite, counterRead;
@@ -244,6 +243,8 @@ void setup() {
   //Read latest cut count
   myeepRom.readPacket((byte*)&counterRead);
   Serial.println("Number of cuts: " + String(counterRead.cuts));
+  Serial.println("Number of cuts total: " + String(counterRead.totalCuts));
+
 }
 
 void loop() {
@@ -578,11 +579,12 @@ void loop() {
             stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
             myeepRom.readPacket((byte*)&counterRead);
             counterWrite.cuts = counterRead.cuts + 1;
+            counterWrite.totalCuts = counterRead.cuts + 1;
             myeepRom.savePacket((byte*)&counterWrite);
 
             if (debug) {
               myeepRom.readPacket((byte*)&counterRead);
-              Serial.println("Number of cuts: " + String(counterRead.cuts));
+              Serial.println("Number of cuts: " + String(counterRead.cuts));              
             }
             previousMillis = currentMillis;
             processingStep++;
