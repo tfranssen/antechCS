@@ -244,7 +244,6 @@ void setup() {
   myeepRom.readPacket((byte*)&counterRead);
   Serial.println("Number of cuts: " + String(counterRead.cuts));
   Serial.println("Number of cuts total: " + String(counterRead.totalCuts));
-
 }
 
 void loop() {
@@ -303,8 +302,8 @@ void loop() {
       myeepRom.readPacket((byte*)&counterRead);
       Serial.println("Number of cuts: " + String(counterRead.cuts));
       delay(250);
-      
-      myNex.writeStr("t5.txt", "This disk: " + String(counterRead.cuts) + ". Total: " + String(counterRead.totalCuts)+ ".");
+
+      myNex.writeStr("t5.txt", "This disk: " + String(counterRead.cuts) + ". Total: " + String(counterRead.totalCuts) + ".");
     }
   }
 
@@ -589,7 +588,7 @@ void loop() {
 
             if (debug) {
               myeepRom.readPacket((byte*)&counterRead);
-              Serial.println("Number of cuts: " + String(counterRead.cuts));              
+              Serial.println("Number of cuts: " + String(counterRead.cuts));
             }
             previousMillis = currentMillis;
             processingStep++;
@@ -866,7 +865,7 @@ void trigger20() {
   myeepRom.readPacket((byte*)&counterRead);
   Serial.println("Number of cuts: " + String(counterRead.cuts));
   delay(250);
-  myNex.writeStr("t5.txt", String(counterRead.cuts));
+  myNex.writeStr("t5.txt", "This disk: " + String(counterRead.cuts) + ". Total: " + String(counterRead.totalCuts) + ".");
 }
 
 //Reset after error
