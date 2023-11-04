@@ -303,7 +303,8 @@ void loop() {
       myeepRom.readPacket((byte*)&counterRead);
       Serial.println("Number of cuts: " + String(counterRead.cuts));
       delay(250);
-      myNex.writeStr("t5.txt", String(counterRead.cuts));
+      
+      myNex.writeStr("t5.txt", "This disk: " + String(counterRead.cuts) + ". Total: " + String(counterRead.totalCuts)+ ".");
     }
   }
 
