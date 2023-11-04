@@ -442,9 +442,6 @@ void loop() {
     if (processingCount < quantityVar) {
       switch (processingStep) {
         case 0:
-          if (stopButtonFlag) {
-            break;
-          }
           // Step 0: Initialize processing
           Serial.println("Start processing");
           processingStatus = String(processingCount + 1) + " / " + String(quantityVar);
@@ -601,12 +598,15 @@ void loop() {
             processingStep = 0;
             processingCount++;
             lastMillis = millis();
+            if (stopButtonFlag) {
+              processingCount = quantityVar;
+            }
           }
           break;
       }
     } else {
+      setCutterServoRPM(0);
       if (currentMillis - lastMillis >= 3000) {
-        setCutterServoRPM(0);
         disableCutterServo();
         myNex.writeStr("page 7");
         processingFlag = 0;
@@ -738,13 +738,12 @@ void trigger9() {
   if (debug) {
     Serial.println("Button pressed: Stop button");
   }
-  
+
   if (stopButtonFlag == 0) {
     stopButtonFlag = 1;
   } else {
     stopButtonFlag = 0;
-  }; 
-
+  };
 }
 
 //Pause button at processing page
