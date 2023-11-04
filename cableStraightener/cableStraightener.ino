@@ -263,6 +263,8 @@ void loop() {
     processingStep = 0;
     processingFlag = false;
     errorFlag = 1;
+    refCutFlag = 0;
+    stepperCutter.stop();
   }
 
   if (!safetyRelayStatus && currentPage != 14) {
@@ -274,6 +276,8 @@ void loop() {
     processingStep = 0;
     processingFlag = false;
     errorFlag = 1;
+    refCutFlag = 0;
+    stepperCutter.stop();
   }
 
   if (currentPage != lastPage) {
@@ -867,6 +871,8 @@ void trigger20() {
 //Reset after error
 void trigger21() {
   processingFlag = 0;
+  refCutFlag = 0;
+  refCutStep = INIT;
   processingStep = 0;
   processingCount = 0;
   stopButtonFlag = 0;
