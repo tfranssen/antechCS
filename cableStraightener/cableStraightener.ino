@@ -39,7 +39,7 @@ int cutterMaxSpeedSettingPercentage = 100;
 int cutterMaxSpeedSetting = cutterMaxSpeedSettingDefault * cutterMaxSpeedSettingPercentage;
 int cutterMaxSpeedSettingDown = 4000;  // Dit is de neergaande beweging
 
-long stepsPerMM = 60;                   // This is the number of steps on the stepper motors for feeding 1 mm of cable
+float stepsPerMM = 60;                   // This is the number of steps on the stepper motors for feeding 1 mm of cable
 float pulsesPerMM = 48.2;               // This is the number of pulses on the rotary encoder for 1 mm of cable
 unsigned int delayBeforeFeeding = 500;  // Delay in ms between starting straigther and start feeding
 unsigned int delayAfterFeeding = 1000;  // Delay in ms between starting straigther and start feeding
@@ -85,7 +85,7 @@ modbusMaster modbus2;
 int16_t cutterRPMRead = 0;
 
 // Proces vars
-unsigned long lengthVar = 1000;
+float lengthVar = 1000;
 unsigned int quantityVar = 10;
 bool errorFlag = 0;
 bool processingFlag = 0;
@@ -208,6 +208,8 @@ void setup() {
   modbus2.begin(0x02, modbusSerial, DEREPin);  // Straigtner servo
   delay(50);
 
+
+  // COMMENT FOR TESTING WITOUT MACHINE!!!
   // Read RPM from cutter servo to detect if the program can communicatate with the motor
   Serial.print("Searching motor ");
   while (cutterRPMRead == 0) {
@@ -250,8 +252,12 @@ void loop() {
   currentMillis = millis();
   unsigned long interval = 0;
   currentPage = myNex.currentPageId;
+
   safetyRelayStatus = digitalRead(safetyRelayInput);
   safetyButtonStatus = digitalRead(safetyButtonInput);
+  //!!!!Changed to test without machine!!!!!!!
+  // safetyRelayStatus = 1;
+  // safetyButtonStatus = 0;
 
   if (safetyButtonStatus && currentPage != 14) {
     Serial.println("Safety button activated");
@@ -285,8 +291,8 @@ void loop() {
     Serial.println(currentPage);
 
     if (currentPage == 2) {
-      delay(250);
-      myNex.writeStr("t0.txt", String(lengthVar));
+      delay(200);
+      myNex.writeStr("t0.txt", String(lengthVar,1));
       delay(50);
       myNex.writeStr("t1.txt", String(quantityVar));
     }
@@ -423,20 +429,20 @@ void loop() {
           homeCutterFlag = false;
           if (homeCutterInProduction) {
             // Check if the cutting disk is visible using the sensor
-            // if (digitalRead(cuttingDiskVisibleSensor)) {
-            //   Serial.println("HomeCutter: Cutting disk is not visible.");
-            //   processingStep = 0;
-            //   processingFlag = false;
-            //   errorFlag = 1;
-            //   stepperCutter.setCurrentPosition(0);
-            //   myNex.writeStr("page 14");
-            //   delay(100);
-            //   myNex.writeStr("t5.txt", "Cutting disk is not visible");
-            //   break;
-            // } else {
-            myNex.writeStr("page 4");
-            homeCutterInProduction = false;
-            // }
+            if (digitalRead(cuttingDiskVisibleSensor)) {
+              Serial.println("HomeCutter: Cutting disk is not visible.");
+              processingStep = 0;
+              processingFlag = false;
+              errorFlag = 1;
+              stepperCutter.setCurrentPosition(0);
+              myNex.writeStr("page 14");
+              delay(100);
+              myNex.writeStr("t5.txt", "Cutting disk is not visible");
+              break;
+            } else {
+              myNex.writeStr("page 4");
+              homeCutterInProduction = false;
+            }
           }
         }
         break;
@@ -555,19 +561,19 @@ void loop() {
           if (currentMillis - previousMillis >= delayBeforeCutting) {
             stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
             Serial.println("Rotary pulses before cut: " + String(-myEnc.read()));
-            // if (digitalRead(cuttingDiskVisibleSensor)) {
-            //   Serial.println("HomeCutter: Cutting disk is not visible.");
-            //   processingStep = 0;
-            //   processingFlag = false;
-            //   errorFlag = 1;
-            //   disableExternalPower();
-            //   disableCutterServo();
-            //   disableStraightenerServo();
-            //   myNex.writeStr("page 14");
-            //   delay(100);
-            //   myNex.writeStr("t5.txt", "Cutting disk is not visible");
-            //   break;
-            // }
+            if (digitalRead(cuttingDiskVisibleSensor)) {
+              Serial.println("HomeCutter: Cutting disk is not visible.");
+              processingStep = 0;
+              processingFlag = false;
+              errorFlag = 1;
+              disableExternalPower();
+              disableCutterServo();
+              disableStraightenerServo();
+              myNex.writeStr("page 14");
+              delay(100);
+              myNex.writeStr("t5.txt", "Cutting disk is not visible");
+              break;
+            }
             stepperCutter.moveTo(-cutterSteps);
             previousMillis = currentMillis;
             processingStep++;
@@ -931,7 +937,6 @@ void trigger26() {
 
 // Lin speed +
 void trigger27() {
-
   cutterMaxSpeedSettingPercentage++;
   cutterMaxSpeedSetting = cutterMaxSpeedSettingDefault * cutterMaxSpeedSettingPercentage;
   stepperCutter.setMaxSpeed(cutterMaxSpeedSetting);
@@ -940,6 +945,25 @@ void trigger27() {
     Serial.println("Button pressed: Lin speed +, new speed: " + String(cutterMaxSpeedSetting));
   }
 }
+
+// Length setting
+void trigger28() {
+  String length = myNex.readStr("t0.txt");
+  float lengthNum = length.toFloat();
+  lengthNum = round(lengthNum * 10) / 10.0;
+  lengthVar = lengthNum;
+  myNex.writeStr("page 2");
+}
+
+// Quantity setting
+void trigger29() {
+  String quantity = myNex.readStr("t0.txt");
+  unsigned int quantityNum = quantity.toInt();
+  quantityVar = quantityNum;
+  myNex.writeStr("page 2");
+}
+
+
 
 void resetSafety() {
   digitalWrite(safetyRelay, HIGH);
