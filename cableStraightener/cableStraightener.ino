@@ -6,6 +6,7 @@
 #include "RingEEPROM.h"
 
 #define iSV2servoDrive
+#define inches
 
 // Stepper cutter settings
 // Current: 4.0A RMS, Full Current
@@ -40,9 +41,13 @@ int cutterMaxSpeedSettingDefault = 7;  // Divided by 100 because of multiplicati
 int cutterMaxSpeedSettingPercentage = 100;
 int cutterMaxSpeedSetting = cutterMaxSpeedSettingDefault * cutterMaxSpeedSettingPercentage;
 int cutterMaxSpeedSettingDown = 4000;  // Dit is de neergaande beweging
-
+#ifdef inches
+float stepsPerMM = 1524;                   // This is the number of steps on the stepper motors for feeding 1 mm of cable
+float pulsesPerMM = 1224.28;               // This is the number of pulses on the rotary encoder for 1 mm of cable
+#else
 float stepsPerMM = 60;                   // This is the number of steps on the stepper motors for feeding 1 mm of cable
 float pulsesPerMM = 48.2;               // This is the number of pulses on the rotary encoder for 1 mm of cable
+#endif
 unsigned int delayBeforeFeeding = 500;  // Delay in ms between starting straigther and start feeding
 unsigned int delayAfterFeeding = 1000;  // Delay in ms between starting straigther and start feeding
 unsigned int delayBeforeCutting = 100;  // Delay in ms between starting the cutter and moving the table
@@ -222,7 +227,7 @@ void setup() {
   // Read RPM from cutter servo to detect if the program can communicatate with the motor
   Serial.print("Searching motor ");
   while (cutterRPMRead == 0) {
-    cutterRPMRead = modbus.int16FromRegister(0x03, 779);
+    cutterRPMRead = modbus.int16FromRegister(0x03, 309);
     delay(50);
     Serial.print(".");
   }
