@@ -5,8 +5,8 @@
 #include <Encoder.h>
 #include "RingEEPROM.h"
 
-#define iSV2servoDrive
-#define inches
+#define iSV2servoDrive 1
+#define inches 1
 
 // Stepper cutter settings
 // Current: 4.0A RMS, Full Current
@@ -217,7 +217,7 @@ void setup() {
   delay(2000);
   // Modbus settings
   pinMode(DEREPin, OUTPUT);
-  Serial3.begin(9600);
+  Serial3.begin(modbusBaudRate);
   modbus.begin(0x01, modbusSerial, DEREPin);   // Cutter servo
   modbus2.begin(0x02, modbusSerial, DEREPin);  // Straigtner servo
   delay(50);
@@ -227,13 +227,28 @@ void setup() {
   // Read RPM from cutter servo to detect if the program can communicatate with the motor
   Serial.print("Searching motor ");
   while (cutterRPMRead == 0) {
-    cutterRPMRead = modbus.int16FromRegister(0x03, 309);
+    cutterRPMRead = modbus.int16FromRegister(0x03, 0x053F);
+    Serial.print("Modbus readout: ");
+    Serial.println(cutterRPMRead);
     delay(50);
     Serial.print(".");
   }
   Serial.println("");
   Serial.println("Motor detected, RPM: " + String(cutterRPMRead));
   delay(50);
+
+  // // For servo 1 (cutter)
+  // modbus.int16ToRegister(0x0003, 1);
+  // modbus.int16ToRegister(0x0309, 3);
+  // modbus.int16ToRegister(0x0309, 0);
+  // modbus.int16ToRegister(0x0033, 0x2211);
+
+  // // For servo 2 (straightener)
+  // modbus2.int16ToRegister(0x0003, 1); // Set to velocity mode
+  // modbus2.int16ToRegister(0x0309, 3); // Set to speed mode
+  // modbus2.int16ToRegister(0x0309, 0); // Set to 0 RPM
+  // modbus2.int16ToRegister(0x0033, 0x2211); // Save to EEPROM
+
 
   stepperFeeder.setMaxSpeed(feederMaxSpeedSetting);
   stepperFeeder.setAcceleration(feederAccel);
@@ -979,7 +994,15 @@ void trigger29() {
 
 // Pneumatic
 void trigger30() {
-  // code for pneumatic
+  Serial.println("Pneumatic button pressed");
+  if (pneumaticActive) {
+    digitalWrite(CONTROLLINO_R5, LOW);
+    pneumaticActive = false;
+  } else {
+    digitalWrite(CONTROLLINO_R5, HIGH);
+    pneumaticActive = true;
+  
+  }
 }
 
 void resetSafety() {
@@ -1056,7 +1079,7 @@ void moveCutTableDown() {
 
 void setCutterServoRPM(int RPM) {
 #ifdef iSV2servoDrive
-  modbus.int16ToRegister(309, RPM * -1);
+  modbus.int16ToRegister(0x0309, RPM * -1);
 #else
   modbus.int16ToRegister(779, RPM * -1);
 #endif
@@ -1064,7 +1087,7 @@ void setCutterServoRPM(int RPM) {
 
 void setStraightenerServoRPM(int RPM) {
 #ifdef iSV2servoDrive
-  modbus2.int16ToRegister(309, RPM * -1);
+  modbus2.int16ToRegister(0x0309, RPM * -1);
 #else
   modbus2.int16ToRegister(779, RPM * -1);
 #endif
