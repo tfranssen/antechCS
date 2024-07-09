@@ -963,7 +963,10 @@ void trigger29() {
   myNex.writeStr("page 2");
 }
 
-
+// Pneumatic
+void trigger30() {
+  // code for pneumatic
+}
 
 void resetSafety() {
   digitalWrite(safetyRelay, HIGH);
