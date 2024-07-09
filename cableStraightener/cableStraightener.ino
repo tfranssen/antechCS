@@ -76,6 +76,8 @@ long lastRotaryCount = 0;
 bool safetyRelayStatus = false;
 bool safetyButtonStatus = false;
 
+bool pneumaticActive = false;
+
 // Modbus settings
 long modbusBaudRate = 9600;
 const int DEREPin = CONTROLLINO_RS485_DE;
