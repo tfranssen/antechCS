@@ -5,6 +5,9 @@
 #include <Encoder.h>
 #include "RingEEPROM.h"
 
+#define iSV2servoDrive
+
+
 // Stepper cutter settings
 // Current: 4.0A RMS, Full Current
 // Pulses / Rev: 1000
@@ -79,7 +82,12 @@ bool safetyButtonStatus = false;
 bool pneumaticActive = false;
 
 // Modbus settings
+#ifdef iSV2servoDrive
+long modbusBaudRate = 19200;
+#else
 long modbusBaudRate = 9600;
+#endif
+
 const int DEREPin = CONTROLLINO_RS485_DE;
 HardwareSerial *modbusSerial = &Serial3;
 modbusMaster modbus;

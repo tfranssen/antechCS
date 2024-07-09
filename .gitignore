@@ -1,3 +1,4 @@
 .DS_Store
 /cableStraightener/build
 cableStraightener/.vscode/arduino.json
+cableStraightener/.vscode/c_cpp_properties.json
