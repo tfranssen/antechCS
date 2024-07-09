@@ -7,7 +7,6 @@
 
 #define iSV2servoDrive
 
-
 // Stepper cutter settings
 // Current: 4.0A RMS, Full Current
 // Pulses / Rev: 1000
@@ -1051,9 +1050,19 @@ void moveCutTableDown() {
 }
 
 void setCutterServoRPM(int RPM) {
+#ifdef iSV2servoDrive
+  modbus.int16ToRegister(309, RPM * -1);
+#else
   modbus.int16ToRegister(779, RPM * -1);
+#endif
 }
 
 void setStraightenerServoRPM(int RPM) {
+#ifdef iSV2servoDrive
+  modbus2.int16ToRegister(309, RPM * -1);
+#else
   modbus2.int16ToRegister(779, RPM * -1);
+#endif
+
+  
 }
