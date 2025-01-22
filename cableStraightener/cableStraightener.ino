@@ -5,6 +5,9 @@
 #include <Encoder.h>
 #include "RingEEPROM.h"
 
+#define iSV2servoDrive 1
+#define inches 1
+
 // Stepper cutter settings
 // Current: 4.0A RMS, Full Current
 // Pulses / Rev: 1000
@@ -38,9 +41,13 @@ int cutterMaxSpeedSettingDefault = 7;  // Divided by 100 because of multiplicati
 int cutterMaxSpeedSettingPercentage = 100;
 int cutterMaxSpeedSetting = cutterMaxSpeedSettingDefault * cutterMaxSpeedSettingPercentage;
 int cutterMaxSpeedSettingDown = 4000;  // Dit is de neergaande beweging
-
+#ifdef inches
+float stepsPerMM = 1524;                   // This is the number of steps on the stepper motors for feeding 1 mm of cable
+float pulsesPerMM = 1224.28;               // This is the number of pulses on the rotary encoder for 1 mm of cable
+#else
 float stepsPerMM = 60;                   // This is the number of steps on the stepper motors for feeding 1 mm of cable
 float pulsesPerMM = 48.2;               // This is the number of pulses on the rotary encoder for 1 mm of cable
+#endif
 unsigned int delayBeforeFeeding = 500;  // Delay in ms between starting straigther and start feeding
 unsigned int delayAfterFeeding = 1000;  // Delay in ms between starting straigther and start feeding
 unsigned int delayBeforeCutting = 100;  // Delay in ms between starting the cutter and moving the table
@@ -76,8 +83,15 @@ long lastRotaryCount = 0;
 bool safetyRelayStatus = false;
 bool safetyButtonStatus = false;
 
+bool pneumaticActive = false;
+
 // Modbus settings
+#ifdef iSV2servoDrive
+long modbusBaudRate = 19200;
+#else
 long modbusBaudRate = 9600;
+#endif
+
 const int DEREPin = CONTROLLINO_RS485_DE;
 HardwareSerial *modbusSerial = &Serial3;
 modbusMaster modbus;
@@ -203,7 +217,7 @@ void setup() {
   delay(2000);
   // Modbus settings
   pinMode(DEREPin, OUTPUT);
-  Serial3.begin(9600);
+  Serial3.begin(modbusBaudRate);
   modbus.begin(0x01, modbusSerial, DEREPin);   // Cutter servo
   modbus2.begin(0x02, modbusSerial, DEREPin);  // Straigtner servo
   delay(50);
@@ -213,13 +227,28 @@ void setup() {
   // Read RPM from cutter servo to detect if the program can communicatate with the motor
   Serial.print("Searching motor ");
   while (cutterRPMRead == 0) {
-    cutterRPMRead = modbus.int16FromRegister(0x03, 779);
+    cutterRPMRead = modbus.int16FromRegister(0x03, 0x053F);
+    Serial.print("Modbus readout: ");
+    Serial.println(cutterRPMRead);
     delay(50);
     Serial.print(".");
   }
   Serial.println("");
   Serial.println("Motor detected, RPM: " + String(cutterRPMRead));
   delay(50);
+
+  // // For servo 1 (cutter)
+  // modbus.int16ToRegister(0x0003, 1);
+  // modbus.int16ToRegister(0x0309, 3);
+  // modbus.int16ToRegister(0x0309, 0);
+  // modbus.int16ToRegister(0x0033, 0x2211);
+
+  // // For servo 2 (straightener)
+  // modbus2.int16ToRegister(0x0003, 1); // Set to velocity mode
+  // modbus2.int16ToRegister(0x0309, 3); // Set to speed mode
+  // modbus2.int16ToRegister(0x0309, 0); // Set to 0 RPM
+  // modbus2.int16ToRegister(0x0033, 0x2211); // Save to EEPROM
+
 
   stepperFeeder.setMaxSpeed(feederMaxSpeedSetting);
   stepperFeeder.setAcceleration(feederAccel);
@@ -963,7 +992,18 @@ void trigger29() {
   myNex.writeStr("page 2");
 }
 
-
+// Pneumatic
+void trigger30() {
+  Serial.println("Pneumatic button pressed");
+  if (pneumaticActive) {
+    digitalWrite(CONTROLLINO_R5, LOW);
+    pneumaticActive = false;
+  } else {
+    digitalWrite(CONTROLLINO_R5, HIGH);
+    pneumaticActive = true;
+  
+  }
+}
 
 void resetSafety() {
   digitalWrite(safetyRelay, HIGH);
@@ -1038,9 +1078,19 @@ void moveCutTableDown() {
 }
 
 void setCutterServoRPM(int RPM) {
+#ifdef iSV2servoDrive
+  modbus.int16ToRegister(0x0309, RPM * -1);
+#else
   modbus.int16ToRegister(779, RPM * -1);
+#endif
 }
 
 void setStraightenerServoRPM(int RPM) {
+#ifdef iSV2servoDrive
+  modbus2.int16ToRegister(0x0309, RPM * -1);
+#else
   modbus2.int16ToRegister(779, RPM * -1);
+#endif
+
+  
 }
