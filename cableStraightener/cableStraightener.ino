@@ -64,6 +64,17 @@ struct QueueItem {
 QueueItem queueList[MAX_QUEUE];  // Array to hold the queue items
 int queueCount = 0;              // Current number of items in the queue
 
+// Function to add a new entry to the queue
+bool addToQueue(float length, unsigned int quantity) {
+  if (queueCount < MAX_QUEUE) {
+    queueList[queueCount].length = length;
+    queueList[queueCount].quantity = quantity;
+    queueCount++;
+    return true;
+  }
+  return false;  // Queue is full
+}
+
 // Rotary encoder settings
 Encoder myEnc(CONTROLLINO_IN0, CONTROLLINO_IN1);
 
