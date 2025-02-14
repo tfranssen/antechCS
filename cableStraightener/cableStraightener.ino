@@ -75,6 +75,32 @@ bool addToQueue(float length, unsigned int quantity) {
   return false;  // Queue is full
 }
 
+void processQueue() {
+  if (queueCount > 0) {
+    // Load the first item in the queue into the global processing variables
+    lengthVar = queueList[0].length;
+    quantityVar = queueList[0].quantity;
+    
+    // Remove the processed item from the queue (FIFO)
+    removeFromQueue(0);
+    
+    // Reset processing counters and flags as needed
+    processingCount = 0;
+    processingStep = 0;
+    processingFlag = true;  // This flag will trigger the processing in your loop()
+    
+    // Optionally, switch the HMI page to the processing page
+    myNex.writeStr("page 3");
+    
+    Serial.println("Starting processing for queue item:");
+    Serial.println("  Length: " + String(lengthVar) + " mm");
+    Serial.println("  Quantity: " + String(quantityVar));
+  } else {
+    Serial.println("Queue is empty. Nothing to process.");
+    myNex.writeStr("tQueueStatus.txt", "Queue empty");
+  }
+}
+
 // Function to remove an entry from the queue at a given index
 void removeFromQueue(int index) {
   if (index < 0 || index >= queueCount) {
