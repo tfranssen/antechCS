@@ -53,6 +53,17 @@ unsigned int delayAfterFeeding = 1000;  // Delay in ms between starting straigth
 unsigned int delayBeforeCutting = 100;  // Delay in ms between starting the cutter and moving the table
 unsigned int delayAfterCutting = 100;   // Delay in ms between stopping the cutter and turning off the vacuum and power to servo (brake)
 
+// ***** Queue List Implementation *****
+// Define a structure to hold one queue entry (length and quantity)
+struct QueueItem {
+  float length;          // Cable length (mm, inches, etc.)
+  unsigned int quantity; // Number of pieces for this setting
+};
+
+#define MAX_QUEUE 10         // Maximum number of items in the queue
+QueueItem queueList[MAX_QUEUE];  // Array to hold the queue items
+int queueCount = 0;              // Current number of items in the queue
+
 // Rotary encoder settings
 Encoder myEnc(CONTROLLINO_IN0, CONTROLLINO_IN1);
 
