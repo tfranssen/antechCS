@@ -87,6 +87,11 @@ void removeFromQueue(int index) {
   queueCount--;
 }
 
+// Function to clear the entire queue
+void clearQueue() {
+  queueCount = 0;
+}
+
 // Rotary encoder settings
 Encoder myEnc(CONTROLLINO_IN0, CONTROLLINO_IN1);
 
