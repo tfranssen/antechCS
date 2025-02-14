@@ -75,6 +75,18 @@ bool addToQueue(float length, unsigned int quantity) {
   return false;  // Queue is full
 }
 
+// Function to remove an entry from the queue at a given index
+void removeFromQueue(int index) {
+  if (index < 0 || index >= queueCount) {
+    return; // Invalid index
+  }
+  // Shift items to fill the gap
+  for (int i = index; i < queueCount - 1; i++) {
+    queueList[i] = queueList[i + 1];
+  }
+  queueCount--;
+}
+
 // Rotary encoder settings
 Encoder myEnc(CONTROLLINO_IN0, CONTROLLINO_IN1);
 
