@@ -1044,37 +1044,64 @@ void trigger30() {
   }
 }
 
+// Delete line in queue list
 void trigger31() {
-// trigger for delete line in queue list
-// steps: read va0.val, this is the line the cursor is on
-// remove value from array or put to -1 or so
-
+  int index = myNex.readNumber("va0.val");  // Read the index from Nextion
+  if (index >= 0 && index < queueCount) {
+    removeFromQueue(index);
+    Serial.println("Removed queue item at index: " + String(index));
+    myNex.writeStr("tQueueStatus.txt", "Removed item");
+  } else {
+    Serial.println("Invalid index for removal: " + String(index));
+    myNex.writeStr("tQueueStatus.txt", "Invalid index");
+  }
 }
 
+// Go back to settings page
 void trigger32() {
-  // trigger for return button
-  // steps: go back to page 2
-  }
+  myNex.writeStr("page 2"); 
+}
 
 void trigger33() {
-  // trigger for start button
-  // steps: check if there are values in the array
-  // if yes, start processing
-  // if no, do nothing
+  if (queueCount > 0) {
+    Serial.println("Starting queue processing");
+    processQueue();
+  } else {
+    Serial.println("Queue is empty, nothing to process");
+    myNex.writeStr("tQueueStatus.txt", "Queue empty");
+  }
 }
 
-// add to queue list
+// Add to queue button
 void trigger34() {
-  // trigger from page 2 (settings page) to add current values to the queue list
-  // steps: read va0.val and va1.val
-  // add these values to the array
-
+  // Read length from Nextion (adjust the field name if needed)
+  String lengthStr = myNex.readStr("t0.txt");
+  float lengthNum = lengthStr.toFloat();
+  lengthNum = round(lengthNum * 10) / 10.0;
+  
+  // Read quantity from Nextion (adjust the field name if needed)
+  String quantityStr = myNex.readStr("t1.txt");
+  unsigned int quantityNum = quantityStr.toInt();
+  
+  // Update global variables if needed
+  lengthVar = lengthNum;
+  quantityVar = quantityNum;
+  
+  // Attempt to add to the queue
+  if (addToQueue(lengthNum, quantityNum)) {
+    Serial.println("Added to queue: " + String(lengthNum) + " mm, quantity: " + String(quantityNum));
+    myNex.writeStr("tQueueStatus.txt", "Added");
+  } else {
+    Serial.println("Queue full, cannot add more items.");
+    myNex.writeStr("tQueueStatus.txt", "Queue full");
+  }
 }
 
 void trigger35() {
-// trigger to go to page  18 (queue list page)
-// steps: go to page 18
+  myNex.writeStr("page 18"); // Go to queue list page
 }
+
+
 void resetSafety() {
   digitalWrite(safetyRelay, HIGH);
   delay(100);
